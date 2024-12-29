@@ -1,6 +1,4 @@
 require 'fog/core'
-require 'fog/xml'
-require 'fog/json'
 require 'libvirt'
 
 require File.expand_path('../libvirt/version', __FILE__)

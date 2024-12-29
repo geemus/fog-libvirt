@@ -25,9 +25,8 @@ Gem::Specification.new do |s|
   s.required_ruby_version = '>= 2.7'
 
   s.add_dependency("fog-core", ">= 1.27.4")
-  s.add_dependency("fog-json")
-  s.add_dependency("fog-xml", "~> 0.1.1")
-  s.add_dependency("json")
+  # 1.11 introduced support for Ruby 2.7 as precompiled gem
+  s.add_dependency("nokogiri", "~> 1.11")
   s.add_dependency('ruby-libvirt','>= 0.7.0')
 
   s.add_development_dependency("minitest", "~> 5.0")
