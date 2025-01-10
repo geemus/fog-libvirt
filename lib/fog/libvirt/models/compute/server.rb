@@ -346,13 +346,13 @@ module Fog
 
                 volumes.each_with_index do |volume, index|
                   target_device = "vd#{('a'..'z').to_a[index]}"
-                  if ceph_args && volume.pool_name.include?(ceph_args["libvirt_ceph_pool"])
+                  if ceph_args && ceph_args["libvirt_ceph_pools"]&.include?(volume.pool_name)
                     xml.disk(:type => "network", :device => "disk") do
                       xml.driver(:name => "qemu", :type => volume.format_type, :cache => "writeback", :discard => "unmap")
-                      xml.source(:protocol => "rbd", :name => volume.path)
-
-                      ceph_args["monitor"]&.split(",")&.each do |monitor|
-                        xml.host(:name => monitor, :port => ceph_args["port"])
+                      xml.source(:protocol => "rbd", :name => volume.path) do
+                        ceph_args["monitor"]&.each do |monitor|
+                          xml.host(:name => monitor, :port => ceph_args["port"])
+                        end
                       end
 
                       xml.auth(:username => ceph_args["auth_username"]) do
@@ -458,11 +458,21 @@ module Fog
 
           args = {}
 
+          valid_keys = ["monitor", "port", "libvirt_ceph_pools", "libvirt_ceph_pool", "auth_username", "auth_uuid", "bus_type"]
+          array_values = ["monitor", "libvirt_ceph_pools"]
+
           File.readlines(path).each do |line|
             pair = line.strip.split("=")
-            key = pair[0]
-            value = pair[1]
-            args[key] = value
+            key = pair[0].strip
+            if valid_keys.include?(key)
+              value = array_values.include?(key) ? pair[1].split(',').map(&:strip) : pair[1].strip
+              args[key] = value
+            end
+          end
+
+          if args.has_key?("libvirt_ceph_pool") && !args.has_key?("libvirt_ceph_pools")
+            args["libvirt_ceph_pools"] = [args["libvirt_ceph_pool"]]
+            args.delete("libvirt_ceph_pool")
           end
 
           args

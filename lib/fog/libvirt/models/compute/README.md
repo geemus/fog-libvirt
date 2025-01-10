@@ -32,7 +32,7 @@ After adding the authentication key to a libvirt secret, it can be configured as
 ```
 monitor=mon001.example.com,mon002.example.com,mon003.example.com
 port=6789
-libvirt_ceph_pool=rbd_pool_name
+libvirt_ceph_pools=rbd_pool_name,second_rbd_pool_name
 auth_username=libvirt
 auth_uuid=uuid_of_libvirt_secret
 bus_type=virtio

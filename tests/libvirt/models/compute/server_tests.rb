@@ -1,9 +1,45 @@
+RealFile = File
+class FakeFile < RealFile
+  def self.file?(path)
+    path == '/etc/foreman/ceph.conf' || RealFile.file(path)
+  end
+
+  def self.readlines(path)
+    if path == '/etc/foreman/ceph.conf'
+      return [
+        "monitor=mon001.example.com,mon002.example.com,mon003.example.com",
+        "port=6789",
+        "libvirt_ceph_pools=rbd_pool_name,second_rbd_pool_name",
+        "auth_username=libvirt",
+        "auth_uuid=uuid_of_libvirt_secret",
+        "bus_type=virtio"
+      ]
+    else
+      return RealFile.readlines(path)
+    end
+  end
+end
+
 Shindo.tests('Fog::Compute[:libvirt] | server model', ['libvirt']) do
 
   servers = Fog::Compute[:libvirt].servers
   # Match the mac in dhcp_leases mock
   nics = Fog.mock? ? [{ :type => 'network', :network => 'default', :mac => 'aa:bb:cc:dd:ee:ff' }] : nil
   server = servers.create(:name => Fog::Mock.random_letters(8), :nics => nics)
+
+  before do
+    Object.class_eval do
+      remove_const(:File)
+      const_set(:File, FakeFile)
+    end
+  end
+
+  after do
+    Object.class_eval do
+      remove_const(:File)
+      const_set(:File, RealFile)
+    end
+  end
 
   tests('The server model should') do
     tests('have the action') do
@@ -88,6 +124,28 @@ Shindo.tests('Fog::Compute[:libvirt] | server model', ['libvirt']) do
         )
         xml = server.to_xml
         xml.match?(/<disk type="block" device="disk">/) && xml.match?(%r{<source dev="/dev/sda"/>})
+      end
+      test("with disk of type ceph") do
+        server = Fog::Libvirt::Compute::Server.new(
+          {
+            :nics => [],
+            :volumes => [
+              Fog::Libvirt::Compute::Volume.new({ :path => "rbd_pool_name/block-1", :pool_name => "rbd_pool_name" }),
+              Fog::Libvirt::Compute::Volume.new({ :path => "rbd_pool_name/block-2", :pool_name => "rbd_pool_name" })
+            ]
+          }
+        )
+        
+        xml = server.to_xml
+
+        network_disk = xml.match?(/<disk type="network" device="disk">/)
+        mon_host = xml.match?(%r{<host name="mon001.example.com" port="6789"/>})
+        source_block1_rbd = xml.match?(%r{<source protocol="rbd" name="rbd_pool_name/block-1">})
+        source_block2_rbd = xml.match?(%r{<source protocol="rbd" name="rbd_pool_name/block-2">})
+        auth_username = xml.match?(/<auth username="libvirt">/)
+        auth_secret = xml.match?(%r{<secret type="ceph" uuid="uuid_of_libvirt_secret"/>})
+
+        network_disk && mon_host && source_block1_rbd && source_block2_rbd && auth_username && auth_secret
       end
       test("with q35 machine type on x86_64") { server.to_xml.match?(%r{<type arch="x86_64" machine="q35">hvm</type>}) }
     end
