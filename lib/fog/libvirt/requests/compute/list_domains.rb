@@ -31,23 +31,23 @@ module Fog
         def domain_display xml
           attrs = {}
           [:type, :port, :password, :listen].each do |element|
-            attrs[element] = xml_element(xml, "domain/devices/graphics",element.to_s) rescue nil
+            attrs[element] = (xml / "domain/devices/graphics/@#{element}").text
           end
-          attrs.reject{|k,v| v.nil? or v == ""}
+          attrs.reject! { |k, v| v.empty? }
         end
 
         def domain_volumes xml
-          xml_elements(xml, "domain/devices/disk/source").map do |element|
+          (xml / "domain/devices/disk/source").map do |element|
             element[:file] || element[:dev] || element[:name]
           end
         end
 
         def boot_order xml
-          xml_elements(xml, "domain/os/boot", "dev")
+          (xml / "domain/os/boot/@dev").map(&:text)
         end
 
         def firmware(xml)
-          firmware_from_loader = xml_elements(xml, "domain/os/loader", "type").first
+          firmware_from_loader = (xml / "domain/os/loader/@type").text
 
           case firmware_from_loader
           when 'pflash'
@@ -55,17 +55,17 @@ module Fog
           when 'rom'
             'bios'
           else
-            xml_elements(xml, "domain/os", "firmware").first || 'bios'
+            (xml / "domain/os/@firmware").first&.text || 'bios'
           end
         end
 
         # we rely on the fact that the secure attribute is only present when secure boot is enabled
         def secure_boot_enabled?(xml)
-          xml_elements(xml, "domain/os/loader", "secure").first == 'yes'
+          (xml / "domain/os/loader/@secure").text == 'yes'
         end
 
         def domain_interfaces xml
-          ifs = xml_elements(xml, "domain/devices/interface")
+          ifs = xml / "domain/devices/interface"
           ifs.map { |i|
             nics.new({
               :type    => i['type'],
@@ -80,6 +80,8 @@ module Fog
         def domain_to_attributes(dom)
           states= %w(nostate running blocked paused shutting-down shutoff crashed pmsuspended)
 
+          xml = Nokogiri::XML(dom.xml_desc)
+
           begin
             {
               :id              => dom.uuid,
@@ -92,13 +94,13 @@ module Fog
               :autostart       => dom.autostart?,
               :os_type         => dom.os_type,
               :active          => dom.active?,
-              :display         => domain_display(dom.xml_desc),
-              :boot_order      => boot_order(dom.xml_desc),
-              :nics            => domain_interfaces(dom.xml_desc),
-              :volumes_path    => domain_volumes(dom.xml_desc),
+              :display         => domain_display(xml),
+              :boot_order      => boot_order(xml),
+              :nics            => domain_interfaces(xml),
+              :volumes_path    => domain_volumes(xml),
               :state           => states[dom.info.state],
-              :firmware        => firmware(dom.xml_desc),
-              :secure_boot     => secure_boot_enabled?(dom.xml_desc),
+              :firmware        => firmware(xml),
+              :secure_boot     => secure_boot_enabled?(xml),
             }
           rescue ::Libvirt::RetrieveError, ::Libvirt::Error
             # Catch libvirt exceptions to avoid race conditions involving

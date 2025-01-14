@@ -2,6 +2,7 @@ require 'fog/core'
 require 'fog/xml'
 require 'fog/json'
 require 'libvirt'
+require 'nokogiri'
 
 require File.expand_path('../libvirt/version', __FILE__)
 

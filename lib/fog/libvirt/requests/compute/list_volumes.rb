@@ -25,7 +25,8 @@ module Fog
         private
 
         def volume_to_attributes(vol)
-          format_type = xml_element(vol.xml_desc, "/volume/target/format", "type") rescue nil # not all volumes have types, e.g. LVM
+          xml = Nokogiri::XML(vol.xml_desc)
+          format_type = (xml / "/volume/target/format/@type").first&.text&.strip
           return nil if format_type == "dir"
 
           begin

@@ -12,10 +12,12 @@ module Fog
             node_hash[param] = client.send(param) rescue nil
           end
           node_hash[:uri] = client.uri
-          xml = client.sys_info rescue nil
-          [:uuid, :manufacturer, :product, :serial].each do |attr|
-            node_hash[attr] = node_attr(attr, xml) rescue nil
-          end if xml
+          if (xml = sys_info)
+            [:uuid, :manufacturer, :product, :serial].each do |attr|
+              element = xml / "sysinfo/system/entry[@name=#{attr}]"
+              node_hash[attr] = element&.text&.strip
+            end
+          end
 
           node_hash[:hostname] = client.hostname
           [node_hash]
@@ -23,8 +25,12 @@ module Fog
 
         private
 
-        def node_attr attr, xml
-          xml_element(xml, "sysinfo/system/entry[@name='#{attr}']").strip
+        def sys_info
+          Nokogiri::XML(client.sys_info)
+        rescue LibvirtError
+          # qemu:///session typically doesn't have permission to retrieve this
+        rescue StandardError
+          # TODO: log this?
         end
       end
 
